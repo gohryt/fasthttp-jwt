@@ -1,24 +1,23 @@
 package JWT
 
 import (
-	"github.com/cristalhq/jwt/v5"
-	"github.com/goccy/go-json"
-	"github.com/valyala/fasthttp"
+	"math/rand"
+	"time"
 
-	"github.com/gohryt/asphyxia-core/bytes"
-	"github.com/gohryt/asphyxia-core/random"
+	"github.com/bytedance/sonic"
+	"github.com/cristalhq/jwt/v5"
+	"github.com/valyala/fasthttp"
 )
 
 type (
 	TokenGeneratorConfiguration struct {
-		UserValueKey    string `json:"user_value_key"`
-		SignatureLength int    `json:"signature_length"`
-		Expires         int    `json:"expires"`
+		UserValueKey string `json:"user_value_key"`
+		Expires      int    `json:"expires"`
 	}
 
 	TokenGeneratorParameters struct {
 		ErrorHandler func(ctx *fasthttp.RequestCtx, err error)
-		Signature    bytes.Buffer
+		Signature    []byte
 	}
 
 	Claims[T any] struct {
@@ -37,6 +36,18 @@ type (
 	}
 )
 
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func signature(rand *rand.Rand) []byte {
+	target := make([]byte, 512)
+
+	for i := range target {
+		target[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return target
+}
+
 func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenGeneratorParameters) (tokenGenerator *innerTokenGenerator[T], err error) {
 	if parameters.ErrorHandler == nil {
 		parameters.ErrorHandler = func(ctx *fasthttp.RequestCtx, err error) {
@@ -46,7 +57,7 @@ func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenG
 	}
 
 	if len(parameters.Signature) == 0 {
-		parameters.Signature = random.Slice([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), configuration.SignatureLength)
+		parameters.Signature = signature(rand.New(rand.NewSource(time.Now().UnixNano())))
 	}
 
 	signer, err := jwt.NewSignerHS(jwt.HS256, parameters.Signature)
@@ -90,7 +101,7 @@ func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHan
 
 		claims := new(Claims[T])
 
-		err = json.Unmarshal(token.Claims(), claims)
+		err = sonic.Unmarshal(token.Claims(), claims)
 		if err != nil {
 			tokenGenerator.errorHandler(ctx, err)
 			return
