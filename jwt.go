@@ -1,4 +1,4 @@
-package jwt
+package JWT
 
 import (
 	"github.com/cristalhq/jwt/v5"
@@ -37,7 +37,7 @@ type (
 	}
 )
 
-func TokenGenerator[T any](configuration TokenGeneratorConfiguration, parameters TokenGeneratorParameters) (tokenGenerator *innerTokenGenerator[T], err error) {
+func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenGeneratorParameters) (tokenGenerator *innerTokenGenerator[T], err error) {
 	if parameters.ErrorHandler == nil {
 		parameters.ErrorHandler = func(ctx *fasthttp.RequestCtx, err error) {
 			ctx.SetStatusCode(fasthttp.StatusUnauthorized)
