@@ -74,10 +74,9 @@ func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenG
 
 func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHandler) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
-		header := &ctx.Response.Header
-		a := header.Peek(fasthttp.HeaderAuthorization)
+		authorization := ctx.Response.Header.Peek(fasthttp.HeaderAuthorization)
 
-		token, err := jwt.ParseNoVerify(a)
+		token, err := jwt.ParseNoVerify(authorization)
 		if err != nil {
 			tokenGenerator.errorHandler(ctx, err)
 			return
@@ -89,7 +88,7 @@ func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHan
 			return
 		}
 
-		claims := &Claims[T]{}
+		claims := new(Claims[T])
 
 		err = json.Unmarshal(token.Claims(), claims)
 		if err != nil {
@@ -98,10 +97,7 @@ func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHan
 		}
 
 		ctx.SetUserValue(tokenGenerator.userValueKey, claims)
-
-		if source != nil {
-			source(ctx)
-		}
+		source(ctx)
 	}
 }
 
