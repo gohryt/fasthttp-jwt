@@ -11,19 +11,24 @@ import (
 
 type (
 	TokenGeneratorConfiguration struct {
-		UserValueKey    string
-		SignatureLength int
-		Expires         int
+		UserValueKey    string `json:"user_value_key"`
+		SignatureLength int    `json:"signature_length"`
+		Expires         int    `json:"expires"`
+	}
+
+	TokenGeneratorParameters struct {
+		ErrorHandler func(ctx *fasthttp.RequestCtx, err error)
+		Signature    bytes.Buffer
 	}
 
 	Claims[T any] struct {
 		jwt.RegisteredClaims
-
 		Data T
 	}
 
 	innerTokenGenerator[T any] struct {
-		signature []byte
+		errorHandler func(ctx *fasthttp.RequestCtx, err error)
+		signature    []byte
 
 		builder  *jwt.Builder
 		verifier jwt.Verifier
@@ -32,25 +37,33 @@ type (
 	}
 )
 
-func TokenGenerator[T any](configuration TokenGeneratorConfiguration, signature bytes.Buffer) (tokenGenerator *innerTokenGenerator[T], err error) {
-	if len(signature) == 0 {
-		signature = random.Slice([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), configuration.SignatureLength)
+func TokenGenerator[T any](configuration TokenGeneratorConfiguration, parameters TokenGeneratorParameters) (tokenGenerator *innerTokenGenerator[T], err error) {
+	if parameters.ErrorHandler == nil {
+		parameters.ErrorHandler = func(ctx *fasthttp.RequestCtx, err error) {
+			ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+			ctx.SetBodyString(err.Error())
+		}
 	}
 
-	signer, err := jwt.NewSignerHS(jwt.HS256, signature)
+	if len(parameters.Signature) == 0 {
+		parameters.Signature = random.Slice([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), configuration.SignatureLength)
+	}
+
+	signer, err := jwt.NewSignerHS(jwt.HS256, parameters.Signature)
 	if err != nil {
 		return
 	}
 
 	builder := jwt.NewBuilder(signer)
 
-	verifier, err := jwt.NewVerifierHS(jwt.HS256, signature)
+	verifier, err := jwt.NewVerifierHS(jwt.HS256, parameters.Signature)
 	if err != nil {
 		return
 	}
 
 	tokenGenerator = &innerTokenGenerator[T]{
-		signature:    signature,
+		errorHandler: parameters.ErrorHandler,
+		signature:    parameters.Signature,
 		builder:      builder,
 		verifier:     verifier,
 		userValueKey: configuration.UserValueKey,
@@ -60,21 +73,19 @@ func TokenGenerator[T any](configuration TokenGeneratorConfiguration, signature 
 }
 
 func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHandler) fasthttp.RequestHandler {
-	return func(context *fasthttp.RequestCtx) {
-		header := &context.Response.Header
+	return func(ctx *fasthttp.RequestCtx) {
+		header := &ctx.Response.Header
 		a := header.Peek(fasthttp.HeaderAuthorization)
 
 		token, err := jwt.ParseNoVerify(a)
 		if err != nil {
-			context.SetStatusCode(fasthttp.StatusUnauthorized)
-			context.SetBodyString(err.Error())
+			tokenGenerator.errorHandler(ctx, err)
 			return
 		}
 
 		err = tokenGenerator.verifier.Verify(token)
 		if err != nil {
-			context.SetStatusCode(fasthttp.StatusUnauthorized)
-			context.SetBodyString(err.Error())
+			tokenGenerator.errorHandler(ctx, err)
 			return
 		}
 
@@ -82,15 +93,14 @@ func (tokenGenerator *innerTokenGenerator[T]) Handler(source fasthttp.RequestHan
 
 		err = json.Unmarshal(token.Claims(), claims)
 		if err != nil {
-			context.SetStatusCode(fasthttp.StatusUnauthorized)
-			context.SetBodyString(err.Error())
+			tokenGenerator.errorHandler(ctx, err)
 			return
 		}
 
-		context.SetUserValue(tokenGenerator.userValueKey, claims)
+		ctx.SetUserValue(tokenGenerator.userValueKey, claims)
 
 		if source != nil {
-			source(context)
+			source(ctx)
 		}
 	}
 }
