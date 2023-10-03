@@ -4,8 +4,9 @@ go 1.21.0
 
 require (
 	github.com/bytedance/sonic v1.10.0
-	github.com/cristalhq/jwt/v5 v5.1.0
-	github.com/valyala/fasthttp v1.49.0
+	github.com/cristalhq/jwt/v5 v5.1.1
+	github.com/gohryt/asphyxia-core v0.0.1
+	github.com/valyala/fasthttp v1.50.0
 )
 
 require (

@@ -7,6 +7,8 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/cristalhq/jwt/v5"
 	"github.com/valyala/fasthttp"
+
+	"github.com/gohryt/asphyxia-core/random"
 )
 
 type (
@@ -38,16 +40,6 @@ type (
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func signature(rand *rand.Rand) []byte {
-	target := make([]byte, 512)
-
-	for i := range target {
-		target[i] = charset[rand.Intn(len(charset))]
-	}
-
-	return target
-}
-
 func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenGeneratorParameters) (tokenGenerator *innerTokenGenerator[T], err error) {
 	if parameters.ErrorHandler == nil {
 		parameters.ErrorHandler = func(ctx *fasthttp.RequestCtx, err error) {
@@ -57,7 +49,7 @@ func Prepare[T any](configuration TokenGeneratorConfiguration, parameters TokenG
 	}
 
 	if len(parameters.Signature) == 0 {
-		parameters.Signature = signature(rand.New(rand.NewSource(time.Now().UnixNano())))
+		parameters.Signature = random.Slice([]byte(charset), 512)
 	}
 
 	signer, err := jwt.NewSignerHS(jwt.HS256, parameters.Signature)
