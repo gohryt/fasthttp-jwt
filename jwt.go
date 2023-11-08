@@ -1,9 +1,6 @@
 package JWT
 
 import (
-	"math/rand"
-	"time"
-
 	"github.com/bytedance/sonic"
 	"github.com/cristalhq/jwt/v5"
 	"github.com/valyala/fasthttp"
